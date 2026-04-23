@@ -1,0 +1,58 @@
+---
+- name: Install and configure Automox on Windows
+  hosts: all
+  gather_facts: true
+
+  vars_files:
+    - vars/automox.yaml
+
+  vars:
+    automox_policy_group: "{{ policy_group | default('staging') }}"
+    automox_working_dir: 'C:\Temp'
+    automox_install_script: "{{ automox_working_dir }}\\Install-AxAgentMsi.ps1"
+    automox_service_name: "amagent"
+
+  tasks:
+    - name: Ensure Automox access key was provided by AAP credential
+      ansible.builtin.assert:
+        that:
+          - automox_accesskey is defined
+          - automox_accesskey | length > 0
+        fail_msg: "automox_accesskey was not provided by the attached AAP credential."
+      no_log: true
+
+    - name: Gather installed package facts
+      ansible.windows.win_package_facts:
+
+    - name: End host if Automox agent is already installed
+      ansible.builtin.meta: end_host
+      when: >
+        ansible_facts.packages is defined and
+        (
+          'Automox Agent' in ansible_facts.packages or
+          'amagent' in ansible_facts.packages
+        )
+
+    - name: Ensure temp directory exists
+      ansible.windows.win_file:
+        path: "{{ automox_working_dir }}"
+        state: directory
+
+    - name: Copy Automox install script
+      ansible.windows.win_copy:
+        src: files/Install-AxAgentMsi.ps1
+        dest: "{{ automox_install_script }}"
+
+    - name: Run Automox install script
+      ansible.windows.win_shell: |
+        & "{{ automox_install_script }}" -AccessKey "{{ automox_accesskey }}"
+      no_log: true
+
+    - name: Ensure Automox service is started
+      ansible.windows.win_service:
+        name: "{{ automox_service_name }}"
+        state: started
+      register: automox_service_result
+      retries: 3
+      delay: 10
+      until: automox_service_result is succeeded
