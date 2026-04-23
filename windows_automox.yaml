@@ -21,17 +21,16 @@
         fail_msg: "automox_accesskey was not provided by the attached AAP credential."
       no_log: true
 
-    - name: Gather installed package facts
-      ansible.windows.win_package_facts:
+    - name: Check whether Automox service exists
+      ansible.windows.win_shell: |
+        $svc = Get-Service -Name amagent -ErrorAction SilentlyContinue
+        if ($null -ne $svc) { "present" } else { "absent" }
+      register: automox_service_check
+      changed_when: false
 
     - name: End host if Automox agent is already installed
       ansible.builtin.meta: end_host
-      when: >
-        ansible_facts.packages is defined and
-        (
-          'Automox Agent' in ansible_facts.packages or
-          'amagent' in ansible_facts.packages
-        )
+      when: "'present' in automox_service_check.stdout"
 
     - name: Ensure temp directory exists
       ansible.windows.win_file:
