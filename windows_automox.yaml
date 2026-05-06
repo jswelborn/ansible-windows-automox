@@ -45,7 +45,7 @@
     - name: Run Automox install script
       ansible.windows.win_shell: |
         & "{{ automox_install_script }}" -AccessKey "{{ automox_accesskey }}"
-      no_log: true
+      no_log: false
 
     - name: Ensure Automox service is started
       ansible.windows.win_service:
