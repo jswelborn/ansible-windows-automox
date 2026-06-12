@@ -38,7 +38,7 @@
 
     - name: Check whether Automox service exists
       ansible.windows.win_shell: |
-        $svc = Get-Service -Name amagent -ErrorAction SilentlyContinue
+        $svc = Get-Service -Name "{{ automox_service_name }}" -ErrorAction SilentlyContinue
         if ($null -ne $svc) { "present" } else { "absent" }
       register: automox_service_check
       changed_when: false
@@ -60,13 +60,26 @@
     - name: Run Automox install script
       ansible.windows.win_shell: |
         & "{{ automox_install_script }}" -AccessKey "{{ automox_accesskey }}"
+      register: automox_install_result
       no_log: true
+
+    - name: Allow Windows services to settle after Automox install
+      ansible.builtin.pause:
+        seconds: 60
+
+    - name: Reset WinRM connection after Automox install
+      ansible.builtin.meta: reset_connection
+
+    - name: Wait for WinRM after Automox install
+      ansible.builtin.wait_for_connection:
+        delay: 15
+        timeout: 300
 
     - name: Ensure Automox service is started
       ansible.windows.win_service:
         name: "{{ automox_service_name }}"
         state: started
       register: automox_service_result
-      retries: 3
-      delay: 10
+      retries: 6
+      delay: 15
       until: automox_service_result is succeeded
